@@ -339,17 +339,20 @@ function useHistoricalLeagueData() {
                     ?.matchups.filter(m => m.matchup_id === 1)
                     .sort((a, b) => Number(b.points ?? 0) - Number(a.points ?? 0))[0];
 
-                if (championshipMatch && championshipMatch.owner_id) {
-                    const championUser = ctx.users.find(u => u.user_id === championshipMatch.owner_id);
-                    if (championUser) {
-                        const score = championshipMatch.points ? fmt.format(championshipMatch.points) : "N/A";
-                        championMap.set(ctx.season, {
-                            season: ctx.season,
-                            team: championUser.display_name,
-                            record: score, // Display the winning score
-                        });
-                    }
-                }
+                // FIX: Look up the owner_id via the roster using roster_id, as owner_id is not guaranteed on SleeperMatchup
+                if (championshipMatch) {
+                    const winningRoster = ctx.rosters.find(r => r.roster_id === championshipMatch.roster_id);
+                    const championUser = winningRoster?.owner_id ? ctx.users.find(u => u.user_id === winningRoster.owner_id) : undefined;
+                    
+                    if (championUser) {
+                        const score = championshipMatch.points ? fmt.format(championshipMatch.points) : "N/A";
+                        championMap.set(ctx.season, {
+                            season: ctx.season,
+                            team: championUser.display_name,
+                            record: score, // Display the winning score
+                        });
+                    }
+                }
             }
         });
         
@@ -571,16 +574,19 @@ function HomeView({ scores }: { scores: PowerScore[] }) {
             <div className="px-4 py-2 rounded-xl bg-slate-50 border">
               <div className="text-xs text-slate-500">Draft Day</div>
               <div className="font-bold">{shortDate(DRAFT_DAY)}</div>
+                {/* FIX: Removed extra closing } from {draftLeft.hours}h} */}
               <div className="text-xs">{draftLeft.days}d {draftLeft.hours}h</div>
             </div>
             <div className="px-4 py-2 rounded-xl bg-slate-50 border">
               <div className="text-xs text-slate-500">Trade Deadline</div>
               <div className="font-bold">{shortDate(TRADE_DEADLINE)}</div>
+                {/* FIX: Removed extra closing } from {tradeLeft.hours}h} */}
               <div className="text-xs">{tradeLeft.days}d {tradeLeft.hours}h</div>
             </div>
             <div className="px-4 py-2 rounded-xl bg-slate-50 border">
               <div className="text-xs text-slate-500">Playoffs Begin</div>
               <div className="font-bold">{shortDate(PLAYOFFS_START)}</div>
+                {/* FIX: Removed extra closing } from {playoffsLeft.hours}h} */}
               <div className="text-xs">{playoffsLeft.days}d {playoffsLeft.hours}h</div>
             </div>
           </div>
@@ -759,7 +765,7 @@ function PlayoffsView({ scores }: { scores: PowerScore[] }) {
             <Slot title="#2 Seed" team={wc2} />
             <Slot title="#3 Seed" team={wc3} />
           </div>
-            </div>
+        </div>
         <div>
           <div className="text-sm font-semibold mb-2">Conference Championship</div>
           <div className="grid md:grid-cols-2 gap-3">
@@ -777,7 +783,7 @@ function PlayoffsView({ scores }: { scores: PowerScore[] }) {
       <div className="grid md:grid-cols-2 gap-6">
         <Column title="NFC Bracket" wc2={n.two} wc3={n.three} bye1={n.one} />
         <Column title="AFC Bracket" wc2={a.two} wc3={a.three} bye1={a.one} />
-      </div>
+        </div>
       <Card className="p-4">
         <SectionTitle title="League Championship" subtitle="NFC Champion vs AFC Champion" />
         <div className="grid md:grid-cols-2 gap-3">
@@ -834,12 +840,11 @@ function RecordsView({ gameRows, recordsStatus, recordsError, bestRegularSeasonR
     seasonLow, 
     blowouts, 
     highestCombined, 
-    lowestCombined 
   } = useMemo(() => {
     // Only calculate if we have data
     if (!gameRows.length) return {
         seasonHigh: [], seasonLow: [], 
-        blowouts: [], highestCombined: [], lowestCombined: []
+        blowouts: [], highestCombined: [],
     };
     
     const topN = <T,>(arr: T[], n = 5) => arr.slice(0, n);
@@ -875,9 +880,8 @@ function RecordsView({ gameRows, recordsStatus, recordsError, bestRegularSeasonR
 
     const blowouts = topN([...gameRows].sort((a, b) => b.margin - a.margin), 5);
     const highestCombined = topN([...gameRows].sort((a, b) => b.total - a.total), 5);
-    const lowestCombined = topN([...gameRows].sort((a, b) => a.total - b.total), 5);
 
-    return { seasonHigh, seasonLow, blowouts, highestCombined, lowestCombined };
+    return { seasonHigh, seasonLow, blowouts, highestCombined };
   }, [gameRows]);
 
 
@@ -973,12 +977,12 @@ function RecordsView({ gameRows, recordsStatus, recordsError, bestRegularSeasonR
             <RecordList
                 title="Highest Scoring Week"
                 items={[]}
-                render={(x, i) => <RecordItem key={i} rank={i+1} score={'--'} mainLine={'Data Unavailable'} subLine={'Requires full weekly data via API.'} scoreColor={'text-slate-500'}/>}
+                render={(_, i) => <RecordItem key={i} rank={i+1} score={'--'} mainLine={'Data Unavailable'} subLine={'Requires full weekly data via API.'} scoreColor={'text-slate-500'}/>}
             />
             <RecordList
                 title="Lowest Scoring Week"
                 items={[]}
-                render={(x, i) => <RecordItem key={i} rank={i+1} score={'--'} mainLine={'Data Unavailable'} subLine={'Requires full weekly data via API.'} scoreColor={'text-slate-500'}/>}
+                render={(_, i) => <RecordItem key={i} rank={i+1} score={'--'} mainLine={'Data Unavailable'} subLine={'Requires full weekly data via API.'} scoreColor={'text-slate-500'}/>}
             />
             <RecordList
                 title="Season Low Points (Approximate)"
@@ -1545,7 +1549,7 @@ export default function App() {
         {tab === "home" && <HomeView scores={scores} />}
         {tab === "league-info" && <LeagueInfoView scores={scores} users={users.data} rosters={rosters.data} nflWeek={nflWeek} />}
         {tab === "standings" && <StandingsView scores={scores} gameRows={gameRows} recordsStatus={recordsStatus} recordsError={recordsError} />}
-        {tab === "records" && <RecordsView scores={scores} users={users.data} rosters={rosters.data} gameRows={gameRows} recordsStatus={recordsStatus} recordsError={recordsError} bestRegularSeasonRecords={bestRegularSeasonRecords} leagueChampions={leagueChampions} />}
+        {tab === "records" && <RecordsView gameRows={gameRows} recordsStatus={recordsStatus} recordsError={recordsError} bestRegularSeasonRecords={bestRegularSeasonRecords} leagueChampions={leagueChampions} />}
         {tab === "playoffs" && <PlayoffsView scores={scores} />}
       </main>
 
