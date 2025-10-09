@@ -954,9 +954,9 @@ function RecordsView({ gameRows, recordsStatus, recordsError, bestRegularSeasonR
           <RecordList
                 title="Season High Points (Approximate)"
             items={seasonHigh}
-            render={(x: {team:string; pts:number; season:any}, i) => (
+            render={(x: {team:string; pts:number; season:any}, _i) => (
                 <RecordItem
-                    key={`sh-${i}`} rank={i+1} score={x.pts} scoreColor="text-green-700"
+                    key={`sh-${_i}`} rank={_i+1} score={x.pts} scoreColor="text-green-700"
                     mainLine={x.team.split(' (')[0]}
                     subLine={`Total PF ${x.season ? `(${x.season})` : ''}`}
                 />
@@ -967,9 +967,9 @@ function RecordsView({ gameRows, recordsStatus, recordsError, bestRegularSeasonR
             <RecordList
                 title="Largest Margin of Victory"
             items={blowouts}
-            render={(g: GameEntry, i) => (
+            render={(g: GameEntry, _i) => (
               <RecordItem
-                    key={`bo-${i}`} rank={i+1} score={g.margin}
+                    key={`bo-${_i}`} rank={_i+1} score={g.margin}
                     mainLine={`${g.teamA.split(' (')[0]} defeats ${g.teamB.split(' (')[0]}`}
                     subLine={`Wk ${g.week} ${g.season ? `(${g.season})` : ''} • ${fmt.format(g.ptsA)} - ${fmt.format(g.ptsB)}`}
                     scoreColor="text-red-700"
@@ -981,9 +981,9 @@ function RecordsView({ gameRows, recordsStatus, recordsError, bestRegularSeasonR
           <RecordList
                 title="Highest Combined Score"
             items={highestCombined}
-            render={(g: GameEntry, i) => (
+            render={(g: GameEntry, _i) => (
               <RecordItem
-                    key={`hc-${i}`} rank={i+1} score={g.total}
+                    key={`hc-${_i}`} rank={_i+1} score={g.total}
                     mainLine={`${g.teamA.split(' (')[0]} vs ${g.teamB.split(' (')[0]}`}
                     subLine={`Wk ${g.week} ${g.season ? `(${g.season})` : ''} • Total Pts`}
                 />
@@ -1004,9 +1004,9 @@ function RecordsView({ gameRows, recordsStatus, recordsError, bestRegularSeasonR
             <RecordList
                 title="Season Low Points (Approximate)"
                 items={seasonLow}
-                render={(x: {team:string; pts:number; season:any}, i) => (
+                render={(x: {team:string; pts:number; season:any}, _i) => (
                     <RecordItem
-                        key={`sl-${i}`} rank={i+1} score={x.pts} scoreColor="text-blue-700"
+                        key={`sl-${_i}`} rank={_i+1} score={x.pts} scoreColor="text-blue-700"
                         mainLine={x.team.split(' (')[0]}
                         subLine={`Total PF ${x.season ? `(${x.season})` : ''}`}
                     />
@@ -1523,7 +1523,8 @@ export default function App() {
 
   const scores = usePowerScores(users.data, rosters.data);
   // NEW: Fetch all historical game data once for use in Standings (rivalry) and Records
-  const { gameRows, status: recordsStatus, error: recordsError, contexts, bestRegularSeasonRecords, leagueChampions } = useHistoricalLeagueData();
+  // FIX: Removed 'contexts' and ensure only used variables are destructured.
+  const { gameRows, status: recordsStatus, error: recordsError, bestRegularSeasonRecords, leagueChampions } = useHistoricalLeagueData();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
