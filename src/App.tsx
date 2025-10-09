@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 
 // --- Fantasy Football League Site (Single-file React) ---
 // Tailwind is available by default in this canvas. No extra imports required.
@@ -140,52 +140,68 @@ async function safeJson(url: string) {
   }
 }
 
+/**
+ * Fetches current users and rosters and sets up a 5-minute interval for auto-sync.
+ */
 function useSleeperLeague(leagueId: string) {
   const [users, setUsers] = useState<FetchState<SleeperUser[]>>({ data: null, loading: true, error: null });
   const [rosters, setRosters] = useState<FetchState<SleeperRoster[]>>({ data: null, loading: true, error: null });
 
-  useEffect(() => {
-    let canceled = false;
-    setUsers(p => ({ ...p, loading: true, error: null }));
-    setRosters(p => ({ ...p, loading: true, error: null }));
+  // Function to perform the actual fetch
+  const fetchData = useCallback(async () => {
+    // Only set loading state if data is NOT yet present to prevent UI flash on refresh
+    if (!users.data) setUsers(p => ({ ...p, loading: true, error: null }));
+    if (!rosters.data) setRosters(p => ({ ...p, loading: true, error: null }));
 
-    (async () => {
-      const u = await safeJson(`https://api.sleeper.app/v1/league/${leagueId}/users`);
-      const r = await safeJson(`https://api.sleeper.app/v1/league/${leagueId}/rosters`);
-      if (canceled) return;
-      if (u && Array.isArray(u)) setUsers({ data: u, loading: false, error: null });
-      else setUsers({ data: demoUsers, loading: false, error: "Using demo users (network blocked or API failed)" });
-      if (r && Array.isArray(r)) setRosters({ data: r, loading: false, error: null });
-      else setRosters({ data: demoRosters, loading: false, error: "Using demo rosters (network blocked or API failed)" });
-    })();
-    return () => { canceled = true; };
-  }, [leagueId]);
+    const u = await safeJson(`https://api.sleeper.app/v1/league/${leagueId}/users`);
+    const r = await safeJson(`https://api.sleeper.app/v1/league/${leagueId}/rosters`);
+
+    if (u && Array.isArray(u)) setUsers({ data: u, loading: false, error: null });
+    else setUsers(p => ({ ...p, data: p.data || demoUsers, loading: false, error: "Using demo users (network blocked or API failed)" }));
+
+    if (r && Array.isArray(r)) setRosters({ data: r, loading: false, error: null });
+    else setRosters(p => ({ ...p, data: p.data || demoRosters, loading: false, error: "Using demo rosters (network blocked or API failed)" }));
+  }, [leagueId, users.data, rosters.data]);
+
+  useEffect(() => {
+    fetchData(); // Initial fetch on component mount
+
+    // Setup interval for auto-sync (every 5 minutes = 300000 ms)
+    const interval = setInterval(fetchData, 300000); 
+
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, [fetchData]);
 
   return { users, rosters };
 }
 
 /**
- * Fetches the current NFL Week from the Sleeper state endpoint.
+ * Fetches the current NFL Week from the Sleeper state endpoint and auto-syncs every 5 minutes.
  */
 function useNFLState() {
   const [nflWeek, setNflWeek] = useState<number | null>(null);
 
-  useEffect(() => {
-    let canceled = false;
-    (async () => {
-      const state = await safeJson(`https://api.sleeper.app/v1/state/nfl`);
-      if (canceled) return;
-      const week = Number(state?.week || state?.display_week || 0);
-      setNflWeek(week > 0 ? week : null);
-    })();
-    return () => { canceled = true; };
+  const fetchData = useCallback(async () => {
+    const state = await safeJson(`https://api.sleeper.app/v1/state/nfl`);
+    const week = Number(state?.week || state?.display_week || 0);
+    setNflWeek(week > 0 ? week : null);
   }, []);
+
+  useEffect(() => {
+    fetchData(); // Initial fetch
+
+    // Setup interval for auto-sync (every 5 minutes = 300000 ms)
+    const interval = setInterval(fetchData, 300000);
+
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, [fetchData]);
 
   return nflWeek;
 }
 
 /**
  * Fetches all historical data (contexts, weeksData) and calculates derived records.
+ * This runs only once on mount as historical data does not change frequently.
  */
 function useHistoricalLeagueData() {
     const [status, setStatus] = useState<'idle' | 'fetching_contexts' | 'fetching_matchups' | 'done'>('fetching_contexts');
@@ -259,8 +275,7 @@ function useHistoricalLeagueData() {
                     nameResolvers.set(row.leagueId, (rid: number) => {
                         const r = byRoster.get(rid);
                         const u = r?.owner_id ? byUser.get(r.owner_id) : undefined;
-                        // FIX: Declared owner before using it for display name
-                        const owner = u?.display_name || `Roster ${rid}`; 
+                        const owner = u?.display_name || `Roster ${rid}`; 
                         return `${owner}${row.season ? ` (${row.season})` : ''}`;
                     });
                 } else {
@@ -340,7 +355,7 @@ function useHistoricalLeagueData() {
                     ?.matchups.filter(m => m.matchup_id === 1)
                     .sort((a, b) => Number(b.points ?? 0) - Number(a.points ?? 0))[0];
 
-                // FIX: Look up the owner_id via the roster using roster_id, as owner_id is not guaranteed on SleeperMatchup
+                // Look up the owner_id via the roster using roster_id
                 if (championshipMatch) {
                     const winningRoster = ctx.rosters.find(r => r.roster_id === championshipMatch.roster_id);
                     const championUser = winningRoster?.owner_id ? ctx.users.find(u => u.user_id === winningRoster.owner_id) : undefined;
