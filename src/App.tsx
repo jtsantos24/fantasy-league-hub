@@ -259,7 +259,8 @@ function useHistoricalLeagueData() {
                     nameResolvers.set(row.leagueId, (rid: number) => {
                         const r = byRoster.get(rid);
                         const u = r?.owner_id ? byUser.get(r.owner_id) : undefined;
-                        const owner = u?.display_name || `Roster ${rid}`;
+                        // FIX: Declared owner before using it for display name
+                        const owner = u?.display_name || `Roster ${rid}`; 
                         return `${owner}${row.season ? ` (${row.season})` : ''}`;
                     });
                 } else {
@@ -454,11 +455,15 @@ function RivalryTracker({ gameRows, status, error }: { gameRows: GameEntry[], st
                     // Standardize: ptsA gets the score of the first listed rival (teamAName)
                     if (teamA === teamAName) {
                         ptsA = game.ptsA;
-                        ptsB = game.ptsB;
                     } else { 
                         ptsA = game.ptsB;
-                        ptsB = game.ptsA;
                     }
+                    // Standardize: ptsB gets the score of the second listed rival (teamBName)
+                    if (teamB === teamBName) {
+                        ptsB = game.ptsB;
+                    } else {
+                        ptsB = game.ptsA;
+                    }
 
                     totalPtsA += ptsA;
                     totalPtsB += ptsB;
@@ -574,19 +579,16 @@ function HomeView({ scores }: { scores: PowerScore[] }) {
             <div className="px-4 py-2 rounded-xl bg-slate-50 border">
               <div className="text-xs text-slate-500">Draft Day</div>
               <div className="font-bold">{shortDate(DRAFT_DAY)}</div>
-                {/* FIX: Removed extra closing } from {draftLeft.hours}h} */}
               <div className="text-xs">{draftLeft.days}d {draftLeft.hours}h</div>
             </div>
             <div className="px-4 py-2 rounded-xl bg-slate-50 border">
               <div className="text-xs text-slate-500">Trade Deadline</div>
               <div className="font-bold">{shortDate(TRADE_DEADLINE)}</div>
-                {/* FIX: Removed extra closing } from {tradeLeft.hours}h} */}
               <div className="text-xs">{tradeLeft.days}d {tradeLeft.hours}h</div>
             </div>
             <div className="px-4 py-2 rounded-xl bg-slate-50 border">
               <div className="text-xs text-slate-500">Playoffs Begin</div>
               <div className="font-bold">{shortDate(PLAYOFFS_START)}</div>
-                {/* FIX: Removed extra closing } from {playoffsLeft.hours}h} */}
               <div className="text-xs">{playoffsLeft.days}d {playoffsLeft.hours}h</div>
             </div>
           </div>
@@ -1308,7 +1310,7 @@ function ConstitutionSection() {
                 <button 
                     className="flex items-center gap-1 text-sm px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition font-semibold shrink-0"
                 >
-                    {isExpanded ? 'Collapse ' : 'Expand '}
+                    {isExpanded ? 'Minimize ' : 'Maximize '}
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
                 </button>
             </div>
