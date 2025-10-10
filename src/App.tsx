@@ -357,9 +357,8 @@ function useHistoricalLeagueData() {
 
                 // Look up the owner_id via the roster using roster_id
                 if (championshipMatch) {
+                    // This section uses 'roster_id' (correct) and avoids 'owner_id' on the matchup object.
                     const winningRoster = ctx.rosters.find(r => r.roster_id === championshipMatch.roster_id);
-                    // The error TS2339 on owner_id is specifically in this block in previous versions.
-                    // Accessing owner_id via winningRoster (SleeperRoster) is correct, while accessing it via championshipMatch (SleeperMatchup) is incorrect.
                     const championUser = winningRoster?.owner_id ? ctx.users.find(u => u.user_id === winningRoster.owner_id) : undefined;
                     
                     if (championUser) {
@@ -380,9 +379,9 @@ function useHistoricalLeagueData() {
         bestRegularSeasonRecords.sort((a, b) => Number(b.season) - Number(a.season));
         leagueChampions.sort((a, b) => Number(b.season) - Number(a.season));
 
-        // FIX: Remove 'contexts' from return if unused outside of this hook
-        return { weeklyRows, gameRows, contexts, status, error, bestRegularSeasonRecords, leagueChampions }; 
-    }, [weeksData, contexts, status, error]);
+        // FIX: Removed all internal state variables that were causing the TS6133 warnings when destructuring.
+        return { gameRows, status, error, bestRegularSeasonRecords, leagueChampions }; 
+    }, [weeksData, contexts, status, error]); // Retain contexts in dependency array as logic above relies on its changes.
 
     return derivedRecords;
 }
@@ -403,7 +402,7 @@ function usePowerScores(users: SleeperUser[] | null, rosters: SleeperRoster[] | 
       const pointsAgainst = r?.settings?.fpts_against ?? 0;
 
       // Simple power score: 70% PF percentile + 30% win% (bounded)
-      const maxPF = Math.max(1, ...rosters.map(x => x.settings?.fpts ?? 1));
+      const maxPF = Math.max(1, ...rosters.map(_x => _x.settings?.fpts ?? 1)); // FIX: Renamed unused var to _x
       const pfPct = (pointsFor / maxPF) * 100; // 0..100
       const winPct = (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 50;
       const score = 0.7 * pfPct + 0.3 * winPct;
@@ -901,7 +900,7 @@ function RecordsView({ gameRows, recordsStatus, recordsError, bestRegularSeasonR
     const blowouts = topN([...gameRows].sort((a, b) => b.margin - a.margin), 5);
     const highestCombined = topN([...gameRows].sort((a, b) => b.total - a.total), 5);
 
-    // FIX: Remove unused 'lowestCombined' from return
+    // FIX: Removed unused 'lowestCombined' from return (TS6133)
     return { seasonHigh, seasonLow, blowouts, highestCombined };
   }, [gameRows]);
 
@@ -1039,7 +1038,7 @@ function RecordsView({ gameRows, recordsStatus, recordsError, bestRegularSeasonR
   );
 }
 
-function LeagueNewsSection({ users, rosters, nflWeek }: { users: SleeperUser[] | null; rosters: SleeperRoster[] | null; nflWeek: number | null }) {
+function LeagueNewsSection({ users, rosters, nflWeek }: { users: SleeperUser[] | null, rosters: SleeperRoster[] | null, nflWeek: number | null }) {
     const [isExpanded, setIsExpanded] = useState(true);
     const [manualNewsItems, setManualNewsItems] = useState<NewsItem[]>([]);
     const [newNewsContent, setNewNewsContent] = useState('');
@@ -1338,7 +1337,7 @@ function ConstitutionSection() {
     );
 }
 
-function LeagueInfoView({ scores, users, rosters, nflWeek }: { scores: PowerScore[], users: SleeperUser[] | null, rosters: SleeperRoster[] | null, nflWeek: number | null }) {
+function LeagueInfoView({ _scores, users, rosters, nflWeek }: { _scores: PowerScore[], users: SleeperUser[] | null, rosters: SleeperRoster[] | null, nflWeek: number | null }) {
   const draftLeft = timeLeft(DRAFT_DAY);
   const tradeLeft = timeLeft(TRADE_DEADLINE);
   const playoffsLeft = timeLeft(PLAYOFFS_START);
@@ -1569,7 +1568,7 @@ export default function App() {
         )}
 
         {tab === "home" && <HomeView scores={scores} />}
-        {tab === "league-info" && <LeagueInfoView scores={scores} users={users.data} rosters={rosters.data} nflWeek={nflWeek} />}
+        {tab === "league-info" && <LeagueInfoView _scores={scores} users={users.data} rosters={rosters.data} nflWeek={nflWeek} />}
         {tab === "standings" && <StandingsView scores={scores} gameRows={gameRows} recordsStatus={recordsStatus} recordsError={recordsError} />}
         {tab === "records" && <RecordsView gameRows={gameRows} recordsStatus={recordsStatus} recordsError={recordsError} bestRegularSeasonRecords={bestRegularSeasonRecords} leagueChampions={leagueChampions} />}
         {tab === "playoffs" && <PlayoffsView scores={scores} />}
