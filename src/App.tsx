@@ -1569,7 +1569,7 @@ export default function App() {
       </main>
 
       <footer className="max-w-6xl mx-auto p-6 text-xs text-slate-500">
-        Built with ❤️ • Customize divisions in <code>MANUAL_DIVISIONS</code> if Sleeper division data isn't available.
+        Built with❤️ • Customize divisions in <code>MANUAL_DIVISIONS</code> if Sleeper division data isn't available.
       </footer>
     </div>
   );
