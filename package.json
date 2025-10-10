@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+"build:tailwind": "npx tailwindcss -i ./globals.css -o ./globals.css --minify",
+    "build": "npm run build:tailwind && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -14,6 +15,12 @@
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+"devDependencies": {
+    // ... existing packages like "@eslint/js" and "@types/react"
+    "tailwindcss": "^3.0.0", 
+    "postcss": "^8.0.0",
+    "autoprefixer": "^10.0.0",
+    // ... rest of your existing devDependencies	
     "@eslint/js": "^9.36.0",
     "@types/node": "^24.6.0",
     "@types/react": "^19.1.16",
