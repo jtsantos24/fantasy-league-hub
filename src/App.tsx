@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import "./globals.css";
 
 // --- Firebase Imports ---
 import { initializeApp } from "firebase/app";
