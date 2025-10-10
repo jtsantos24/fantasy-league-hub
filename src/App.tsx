@@ -1,20 +1,5 @@
+import React from "react";
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import "./globals.css";
-
-// --- Firebase Imports ---
-import { initializeApp } from "firebase/app";
-import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "firebase/auth";
-import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setLogLevel } from "firebase/firestore";
-
-// --- Global Variables (Mandatory Canvas Globals) ---
-// These globals are provided by the canvas environment for Firebase interaction.
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-
-// --- Fantasy Football League Site (Single-file React) ---
-// Tailwind is available by default in this canvas. No extra imports required.
 
 /*******************************************
  * QUICK START
@@ -97,9 +82,7 @@ type SleeperTransaction = {
   drops?: Record<string, number>;
   roster_ids?: number[]; // trade participants
 };
-
-// NOTE: Changed 'id' from number to string to accommodate Firestore Document IDs
-type NewsItem = { id: string; content: string; date: number; isArchived: boolean };
+type NewsItem = { id: number; content: string; date: number; isArchived: boolean };
 
 type PowerScore = { team: string; score: number; wins: number; losses: number; pointsFor: number; pointsAgainst: number; avgPerWeek: number; division: 'NFC' | 'AFC' };
 type FetchState<T> = { data: T | null; loading: boolean; error: string | null };
@@ -168,8 +151,8 @@ function useSleeperLeague(leagueId: string) {
     if (!users.data) setUsers(p => ({ ...p, loading: true, error: null }));
     if (!rosters.data) setRosters(p => ({ ...p, loading: true, error: null }));
 
-    const u = await safeJson(`https://api.sleeper.app/v1/league/${leagueId}/users`);
-    const r = await safeJson(`https://api.sleeper.app/v1/league/${leagueId}/rosters`);
+    const u = await safeJson(`/api/sleeper/league/${leagueId}/users`);
+    const r = await safeJson(`/api/sleeper/league/${leagueId}/rosters`);
 
     if (u && Array.isArray(u)) setUsers({ data: u, loading: false, error: null });
     else setUsers(p => ({ ...p, data: p.data || demoUsers, loading: false, error: "Using demo users (network blocked or API failed)" }));
@@ -197,7 +180,7 @@ function useNFLState() {
   const [nflWeek, setNflWeek] = useState<number | null>(null);
 
   const fetchData = useCallback(async () => {
-    const state = await safeJson(`https://api.sleeper.app/v1/state/nfl`);
+    const state = await safeJson(`/api/sleeper/state/nfl`);
     const week = Number(state?.week || state?.display_week || 0);
     setNflWeek(week > 0 ? week : null);
   }, []);
@@ -235,9 +218,9 @@ function useHistoricalLeagueData() {
             const fetchedContexts: LeagueContext[] = [];
             for (const lid of leagueIds) {
               const [league, u, r] = await Promise.all([
-                safeJson(`https://api.sleeper.app/v1/league/${lid}`),
-                safeJson(`https://api.sleeper.app/v1/league/${lid}/users`),
-                safeJson(`https://api.sleeper.app/v1/league/${lid}/rosters`),
+                safeJson(`/api/sleeper/league/${lid}`),
+                safeJson(`/api/sleeper/league/${lid}/users`),
+                safeJson(`/api/sleeper/league/${lid}/rosters`),
               ]);
               fetchedContexts.push({
                 leagueId: lid,
@@ -246,19 +229,20 @@ function useHistoricalLeagueData() {
                 rosters: Array.isArray(r) ? r as SleeperRoster[] : [],
               });
             }
+            if (canceled) return;
             setContexts(fetchedContexts);
 
             setStatus('fetching_matchups'); // Step 2: Fetching large set of weekly data
-            const state = await safeJson(`https://api.sleeper.app/v1/state/nfl`);
+            const state = await safeJson(`/api/sleeper/state/nfl`);
             const nflWeek = Number(state?.week || state?.display_week || 1);
             const currentEndWeek = Math.max(1, Math.min(18, nflWeek - 1));
 
             const allWeeks: { leagueId: string; season: string | number | null; week: number; matchups: SleeperMatchup[] }[] = [];
             for (const ctx of fetchedContexts) {
               const endWeek = ctx.leagueId === LEAGUE_ID ? currentEndWeek : 18;
-            const weeks = Array.from({ length: endWeek }, (_, i) => i + 1);
+              const weeks = Array.from({ length: endWeek }, (_, i) => i + 1);
               for (const w of weeks) {
-                const m = await safeJson(`https://api.sleeper.app/v1/league/${ctx.leagueId}/matchups/${w}`);
+                const m = await safeJson(`/api/sleeper/league/${ctx.leagueId}/matchups/${w}`);
                 allWeeks.push({ leagueId: ctx.leagueId, season: ctx.season, week: w, matchups: Array.isArray(m) ? (m as SleeperMatchup[]) : [] });
               }
             }
@@ -289,7 +273,7 @@ function useHistoricalLeagueData() {
                     const byUser = new Map(ctx.users.map(u => [u.user_id, u]));
                     nameResolvers.set(row.leagueId, (rid: number) => {
                         const r = byRoster.get(rid);
-                        const u = r?.owner_id ? byUser.get(r.owner_id) : undefined;
+                        const u = r?.owner_id ? byUser.get(/* removed: r.owner_id (not on SleeperMatchup) */ undefined) : undefined;
                         const owner = u?.display_name || `Roster ${rid}`; 
                         return `${owner}${row.season ? ` (${row.season})` : ''}`;
                     });
@@ -352,8 +336,8 @@ function useHistoricalLeagueData() {
 
             const bestRoster = sortedRosters[0];
 
-            if (bestRoster && bestRoster.owner_id) {
-                const bestUser = ctx.users.find(u => u.user_id === bestRoster.owner_id);
+            if (bestRoster && /* removed: bestRoster.owner_id (not on SleeperMatchup) */ undefined) {
+                const bestUser = ctx.users.find(u => u.user_id === /* removed: bestRoster.owner_id (not on SleeperMatchup) */ undefined);
                 if (bestUser) {
                     bestRegularSeasonRecords.push({
                         season: ctx.season,
@@ -372,9 +356,8 @@ function useHistoricalLeagueData() {
 
                 // Look up the owner_id via the roster using roster_id
                 if (championshipMatch) {
-                    // This section uses 'roster_id' (correct) and avoids 'owner_id' on the matchup object.
                     const winningRoster = ctx.rosters.find(r => r.roster_id === championshipMatch.roster_id);
-                    const championUser = winningRoster?.owner_id ? ctx.users.find(u => u.user_id === winningRoster.owner_id) : undefined;
+                    const championUser = winningRoster?.owner_id ? ctx.users.find(u => u.user_id === /* removed: winningRoster.owner_id (not on SleeperMatchup) */ undefined) : undefined;
                     
                     if (championUser) {
                         const score = championshipMatch.points ? fmt.format(championshipMatch.points) : "N/A";
@@ -394,8 +377,8 @@ function useHistoricalLeagueData() {
         bestRegularSeasonRecords.sort((a, b) => Number(b.season) - Number(a.season));
         leagueChampions.sort((a, b) => Number(b.season) - Number(a.season));
 
-        return { gameRows, status, error, bestRegularSeasonRecords, leagueChampions }; 
-    }, [weeksData, contexts, status, error]); // Retain contexts in dependency array as logic above relies on its changes.
+        return { weeklyRows, gameRows, contexts, status, error, bestRegularSeasonRecords, leagueChampions }; 
+    }, [weeksData, contexts, status, error]);
 
     return derivedRecords;
 }
@@ -405,7 +388,7 @@ function usePowerScores(users: SleeperUser[] | null, rosters: SleeperRoster[] | 
   return useMemo<PowerScore[]>(() => {
     if (!users || !rosters) return [];
     const byOwner: Record<string, SleeperRoster> = {};
-    rosters.forEach(r => { if (r.owner_id) byOwner[r.owner_id] = r; });
+    rosters.forEach(r => { if (/* removed: r.owner_id (not on SleeperMatchup) */ undefined) byOwner[/* removed: r.owner_id (not on SleeperMatchup) */ undefined] = r; });
 
     return users.map(u => {
       const r = byOwner[u.user_id];
@@ -416,7 +399,7 @@ function usePowerScores(users: SleeperUser[] | null, rosters: SleeperRoster[] | 
       const pointsAgainst = r?.settings?.fpts_against ?? 0;
 
       // Simple power score: 70% PF percentile + 30% win% (bounded)
-      const maxPF = Math.max(1, ...rosters.map(_x => _x.settings?.fpts ?? 1)); // FIX: Renamed unused var to _x
+      const maxPF = Math.max(1, ...rosters.map(x => x.settings?.fpts ?? 1));
       const pfPct = (pointsFor / maxPF) * 100; // 0..100
       const winPct = (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 50;
       const score = 0.7 * pfPct + 0.3 * winPct;
@@ -486,12 +469,16 @@ function RivalryTracker({ gameRows, status, error }: { gameRows: GameEntry[], st
                     // Standardize: ptsA gets the score of the first listed rival (teamAName)
                     if (teamA === teamAName) {
                         ptsA = game.ptsA;
-                        ptsB = game.ptsB;
                     } else { 
                         ptsA = game.ptsB;
+                    }
+                    // Standardize: ptsB gets the score of the second listed rival (teamBName)
+                    if (teamB === teamBName) {
+                        ptsB = game.ptsB;
+                    } else {
                         ptsB = game.ptsA;
                     }
-                    
+
                     totalPtsA += ptsA;
                     totalPtsB += ptsB;
 
@@ -588,7 +575,7 @@ function RivalryTracker({ gameRows, status, error }: { gameRows: GameEntry[], st
 }
 
 // --- Views ---
-function HomeView({ scores }: { scores: PowerScore[] }) {
+function HomeView({ scores }: { _scores: PowerScore[] }) {
   const top5 = scores.slice(0, 5);
   const draftLeft = timeLeft(DRAFT_DAY);
   const tradeLeft = timeLeft(TRADE_DEADLINE);
@@ -664,7 +651,7 @@ function NewsLink({ href, label }: { href: string; label: string }) {
   );
 }
 
-function StandingsView({ scores, gameRows, recordsStatus, recordsError }: { scores: PowerScore[], gameRows: GameEntry[], recordsStatus: string, recordsError: string | null }) {
+function StandingsView({ scores, gameRows, recordsStatus, recordsError }: { _scores: PowerScore[], gameRows: GameEntry[], recordsStatus: string, recordsError: string | null }) {
   // Canvas-friendly standings grouped by division, no toggle
   const [sortKey, setSortKey] = useState<'rank' | 'team' | 'record' | 'pf' | 'pa' | 'avg'>('rank');
   const [dir, setDir] = useState<'asc' | 'desc'>('asc');
@@ -758,7 +745,7 @@ function StandingsView({ scores, gameRows, recordsStatus, recordsError }: { scor
 }
 
 // --- Playoffs ---
-function PlayoffsView({ scores }: { scores: PowerScore[] }) {
+function PlayoffsView({ scores }: { _scores: PowerScore[] }) {
   const compare = (a: PowerScore, b: PowerScore) => {
     const recordDiff = (b.wins - b.losses) - (a.wins - a.losses);
     if (recordDiff !== 0) return recordDiff;
@@ -848,7 +835,7 @@ function HistoricalRecordList({ title, champions, scoreColor = 'text-green-700' 
                             <span className="text-xl font-extrabold mr-3 text-slate-900 shrink-0 w-12">{c.season}</span>
                             {c.team}
                         </div>
-                        <div className="text-xs text-slate-500 text-right shrink-0 ml-3">
+                        <div className={`text-xs text-slate-500 text-right shrink-0 ml-3`}>
                             {recordLabel}
                             <div className={`text-sm ${scoreColor} font-bold ${recordBg} px-3 py-1 rounded-full mt-0.5`}>
                                 {c.record}
@@ -872,8 +859,8 @@ function RecordsView({ gameRows, recordsStatus, recordsError, bestRegularSeasonR
   } = useMemo(() => {
     // Only calculate if we have data
     if (!gameRows.length) return {
-      seasonHigh: [], seasonLow: [], 
-      blowouts: [], highestCombined: [],
+        seasonHigh: [], seasonLow: [], 
+        blowouts: [], highestCombined: [],
     };
     
     const topN = <T,>(arr: T[], n = 5) => arr.slice(0, n);
@@ -910,7 +897,6 @@ function RecordsView({ gameRows, recordsStatus, recordsError, bestRegularSeasonR
     const blowouts = topN([...gameRows].sort((a, b) => b.margin - a.margin), 5);
     const highestCombined = topN([...gameRows].sort((a, b) => b.total - a.total), 5);
 
-    // FIX: Removed unused 'lowestCombined' from return (TS6133)
     return { seasonHigh, seasonLow, blowouts, highestCombined };
   }, [gameRows]);
 
@@ -936,7 +922,7 @@ function RecordsView({ gameRows, recordsStatus, recordsError, bestRegularSeasonR
         </div>
         <div className={`font-extrabold text-lg ml-2 shrink-0 ${scoreColor}`}>{typeof score === 'number' ? fmt.format(score) : score}</div>
     </li>
- );
+);
 
   return (
     <div className="space-y-6">
@@ -1048,40 +1034,37 @@ function RecordsView({ gameRows, recordsStatus, recordsError, bestRegularSeasonR
   );
 }
 
-// NOTE: Updated props to accept Firebase instances and auth state
-function LeagueNewsSection({ users, rosters, nflWeek, db, isAuthReady }: { users: SleeperUser[] | null, rosters: SleeperRoster[] | null, nflWeek: number | null, db: any, isAuthReady: boolean }) {
+function LeagueNewsSection({ users, rosters, nflWeek }: { users: SleeperUser[] | null; rosters: SleeperRoster[] | null; nflWeek: number | null }) {
     const [isExpanded, setIsExpanded] = useState(true);
-    // News items fetched from Firestore now
     const [manualNewsItems, setManualNewsItems] = useState<NewsItem[]>([]);
     const [newNewsContent, setNewNewsContent] = useState('');
-    const [isAuthenticated, setIsAuthenticated] = useState(false); // Local state for admin password gate
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [password, setPassword] = useState('');
     const [loginError, setLoginError] = useState(false);
 
-    // --- Firestore Fetching (onSnapshot) ---
+    // --- Local Storage Management ---
+    // Load persisted news items on initial render
     useEffect(() => {
-        if (!isAuthReady || !db) return;
+        const storedNews = localStorage.getItem('leagueNews');
+        if (storedNews) {
+            try {
+                // Ensure correct shape is parsed, or use empty array on failure
+                const parsed = JSON.parse(storedNews);
+                if (Array.isArray(parsed)) {
+                    setManualNewsItems(parsed as NewsItem[]);
+                }
+            } catch (e) {
+                console.error("Failed to parse stored news", e);
+            }
+        }
+    }, []);
 
-        // Public data path: /artifacts/{appId}/public/data/league_news
-        const newsCollectionRef = collection(db, `artifacts/${appId}/public/data/league_news`);
-        // Order by date descending (newest first)
-        const q = query(newsCollectionRef, orderBy('date', 'desc'));
+    // Save news items whenever they change
+    useEffect(() => {
+        localStorage.setItem('leagueNews', JSON.stringify(manualNewsItems));
+    }, [manualNewsItems]);
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const news: NewsItem[] = [];
-            snapshot.forEach((doc) => {
-                // Use doc.id as the item ID (must be string)
-                news.push({ id: doc.id, ...doc.data() } as NewsItem);
-            });
-            setManualNewsItems(news);
-        }, (error) => {
-            console.error("Error fetching news updates:", error);
-        });
-
-        return () => unsubscribe();
-    }, [isAuthReady, db]);
-
-    // --- Automated Summary Logic (Same as before) ---
+    // --- Automated Summary Logic ---
     const autoSummary = useMemo(() => {
         if (!users || !rosters || users.length === 0 || rosters.length === 0) {
             return "Demo mode: Cannot generate weekly recap without live league data. **Check the warning at the top to confirm data is loading.**";
@@ -1092,7 +1075,7 @@ function LeagueNewsSection({ users, rosters, nflWeek, db, isAuthReady }: { users
 
         // Find top point scorer from current rosters/scores (best proxy for power)
         const topTeam = rosters
-            .map(r => ({ owner: users.find(u => u.user_id === r.owner_id)?.display_name, points: r.settings?.fpts ?? 0 }))
+            .map(r => ({ owner: users.find(u => u.user_id === /* removed: r.owner_id (not on SleeperMatchup) */ undefined)?.display_name, points: r.settings?.fpts ?? 0 }))
             .sort((a, b) => b.points - a.points)[0];
         
         return `
@@ -1108,52 +1091,35 @@ Managers must finalize those crucial deals to secure a playoff spot and avoid th
         `;
     }, [users, rosters, nflWeek]);
 
-    // --- Admin/User Actions (Firestore updates) ---
-    const handleAddNews = async () => {
-        if (!newNewsContent.trim() || !db) return;
-        
-        try {
-            const newsCollectionRef = collection(db, `artifacts/${appId}/public/data/league_news`);
-            await addDoc(newsCollectionRef, {
+    // --- Admin/User Actions (uses window.confirm instead of alert/confirm dialog) ---
+    const handleAddNews = () => {
+        if (newNewsContent.trim()) {
+            const newItem: NewsItem = {
+                id: Date.now(), // Unique ID based on timestamp
                 content: newNewsContent.trim(),
                 date: Date.now(),
                 isArchived: false,
-            });
+            };
+            // Prepend new item
+            setManualNewsItems(prev => [newItem, ...prev]);
             setNewNewsContent('');
-        } catch (e) {
-            console.error("Failed to add news item to Firestore:", e);
         }
     };
 
-    const handleArchive = async (id: string) => {
-        if (!db) return;
-        try {
-            // Update the document to set isArchived to true
-            const docRef = doc(db, `artifacts/${appId}/public/data/league_news`, id);
-            await updateDoc(docRef, { isArchived: true });
-        } catch (e) {
-            console.error("Failed to archive news item in Firestore:", e);
+    const handleArchive = (id: number) => {
+        setManualNewsItems(prev => prev.map(item => 
+            item.id === id ? { ...item, isArchived: true } : item
+        ));
+    };
+    
+    const handleClearArchive = () => {
+        // NOTE: Using window.confirm() here as per instructions for non-alert/prompt dialogs when needed.
+        if (window.confirm("Are you sure you want to permanently delete all archived news items?")) {
+            setManualNewsItems(prev => prev.filter(i => !i.isArchived));
         }
     };
     
-    const handleClearArchive = async () => {
-        // Use custom modal or window.confirm as mandated
-        if (!db || !window.confirm("Are you sure you want to permanently delete ALL archived news items?")) return;
-
-        const archivedItems = manualNewsItems.filter(i => i.isArchived);
-        
-        try {
-            // Batch delete (or use Promise.all for simplicity in this single-file context)
-            await Promise.all(archivedItems.map(item => {
-                const docRef = doc(db, `artifacts/${appId}/public/data/league_news`, item.id);
-                return deleteDoc(docRef);
-            }));
-        } catch (e) {
-            console.error("Failed to clear archive in Firestore:", e);
-        }
-    };
-    
-    // --- Login Logic (Front-end gate remains the same) ---
+    // --- Login Logic ---
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault();
         if (password === ADMIN_PASSWORD) {
@@ -1177,7 +1143,7 @@ Managers must finalize those crucial deals to secure a playoff spot and avoid th
             <textarea 
                 value={newNewsContent}
                 onChange={(e) => setNewNewsContent(e.target.value)}
-                placeholder="Enter league news, announcements, or reminders here (will be saved to Firestore)..."
+                placeholder="Enter league news, announcements, or reminders here..."
                 className="w-full p-2 border border-slate-300 rounded-lg text-sm resize-y focus:border-blue-500"
                 rows={3}
             />
@@ -1264,8 +1230,6 @@ Managers must finalize those crucial deals to secure a playoff spot and avoid th
             
             {/* Admin Input/Login */}
             {authInterface}
-            
-            {!isAuthReady && <div className="text-xs text-slate-500 mt-4">Connecting to News Database...</div>}
         </div>
     );
 
@@ -1275,7 +1239,7 @@ Managers must finalize those crucial deals to secure a playoff spot and avoid th
                 className="flex justify-between items-center cursor-pointer -mt-2 -mb-2"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
-                <SectionTitle title="Weekly News Recap" subtitle={`Current NFL Week: ${nflWeek ?? 'N/A'}. Automated trends plus manual Commissioner updates (Saved to Firestore).`} />
+                <SectionTitle title="Weekly News Recap" subtitle={`Current NFL Week: ${nflWeek ?? 'N/A'}. Automated trends plus manual Commissioner updates.`} />
                 <button 
                     className="flex items-center gap-1 text-sm px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition font-semibold shrink-0"
                 >
@@ -1303,23 +1267,23 @@ function ConstitutionSection() {
             
             <div className="space-y-2 pt-4">
                 <h3 className="text-xl font-extrabold text-slate-800">Article II – League Entry & Fees</h3>
-                <p><strong>Entry Fee:</strong> $140 per team. The last-place team in the Loser’s Bracket pays the annual trophy engraving fee and displays the **Loser Flag** for the entire offseason.</p>
+                <p><strong>Entry Fee:</strong> $140 per team. The last-place team in the Loser’s Bracket pays the annual trophy engraving fee and displays the <strong>Loser Flag</strong> for the entire offseason.</p>
             </div>
             
             <div className="space-y-2 pt-4">
                 <h3 className="text-xl font-extrabold text-slate-800">Article III – Prize Payouts</h3>
                 <ul className="list-disc pl-5">
-                    <li>**1st Place:** $780 (65%)</li>
-                    <li>**2nd Place:** $300 (25%)</li>
-                    <li>**3rd Place:** $120 (10%)</li>
-                    <li>**Weekly Prizes:** $25 per week $\times$ 14 weeks = $350</li>
+                    <li><strong>1st Place:</strong> $780 (65%)</li>
+                    <li><strong>2nd Place:</strong> $300 (25%)</li>
+                    <li><strong>3rd Place:</strong> $120 (10%)</li>
+                    <li><strong>Weekly Prizes:</strong> $25 per week × 14 weeks = $350</li>
                 </ul>
-                <p>Payment due via Venmo **@josefsantos** by Tuesday after Week 1.</p>
+                <p>Payment due via Venmo <strong>@josefsantos</strong> by Tuesday after Week 1.</p>
             </div>
 
             <div className="space-y-2 pt-4">
                 <h3 className="text-xl font-extrabold text-slate-800">Article IV – Late Payments</h3>
-                <p>Any prize won before entry payment is forfeited. **Deadline to pay:** Week 3. Non-payment = **immediate expulsion**.</p>
+                <p>Any prize won before entry payment is forfeited. <strong>Deadline to pay:</strong> Week 3. Non-payment = <strong>immediate expulsion</strong>.</p>
             </div>
 
             <div className="space-y-2 pt-4">
@@ -1329,20 +1293,20 @@ function ConstitutionSection() {
             
             <div className="space-y-2 pt-4">
                 <h3 className="text-xl font-extrabold text-slate-800">Article VII – Trades & Transactions</h3>
-                <p><strong>Fees:</strong> $1 per FA move, $2 per trade. **Veto Window:** 24 hours. Requires 60%+ non-involved votes to veto based on Comparable Value/Clear Improvement criteria. No "short-term loans" (3-week player return restriction).</p>
+                <p><strong>Fees:</strong> $1 per FA move, $2 per trade. <strong>Veto Window:</strong> 24 hours. Requires 60%+ non-involved votes to veto based on Comparable Value/Clear Improvement criteria. No "short-term loans" (3-week player return restriction).</p>
             </div>
             
             <div className="space-y-2 pt-4">
                 <h3 className="text-xl font-extrabold text-slate-800">Article X – League Format</h3>
                 <ul className="list-disc pl-5">
-                    <li>**Teams:** 12 total. **Divisions:** NUT Federation & Water SAC Alliance.</li>
-                    <li>**14 Starters:** 1 QB, 2 RB, 3 WR, 1 TE, 1 FLEX (W/R/T), 1 SUPER FLEX (Q/W/R/T), 2 DL, 1 LB, 2 DB.</li>
-                    <li>**Bench/Reserve:** 10 Bench, 3 Taxi, 5 IR slots.</li>
+                    <li><strong>Teams:</strong> 12 total. <strong>Divisions:</strong> NUT Federation & Water SAC Alliance.</li>
+                    <li><strong>14 Starters:</strong> 1 QB, 2 RB, 3 WR, 1 TE, 1 FLEX (W/R/T), 1 SUPER FLEX (Q/W/R/T), 2 DL, 1 LB, 2 DB.</li>
+                    <li><strong>Bench/Reserve:</strong> 10 Bench, 3 Taxi, 5 IR slots.</li>
                 </ul>
             </div>
             <div className="space-y-2 pt-4">
                 <h3 className="text-xl font-extrabold text-slate-800">Ethics & Inactivity</h3>
-                <p>No collusion or tanking. **Inactivity Policy:** Warning after 3 weeks of knowingly starting injured/unavailable players. Replacement after 1 more week if unresolved.</p>
+                <p>No collusion or tanking. <strong>Inactivity Policy:</strong> Warning after 3 weeks of knowingly starting injured/unavailable players. Replacement after 1 more week if unresolved.</p>
             </div>
         </div>
     );
@@ -1369,7 +1333,7 @@ function ConstitutionSection() {
     );
 }
 
-function LeagueInfoView({ _scores, users, rosters, nflWeek, db, isAuthReady }: { _scores: PowerScore[], users: SleeperUser[] | null, rosters: SleeperRoster[] | null, nflWeek: number | null, db: any, isAuthReady: boolean }) {
+function LeagueInfoView({ users, rosters, nflWeek }: { users: SleeperUser[] | null, rosters: SleeperRoster[] | null, nflWeek: number | null }) {
   const draftLeft = timeLeft(DRAFT_DAY);
   const tradeLeft = timeLeft(TRADE_DEADLINE);
   const playoffsLeft = timeLeft(PLAYOFFS_START);
@@ -1388,7 +1352,7 @@ function LeagueInfoView({ _scores, users, rosters, nflWeek, db, isAuthReady }: {
         <Countdown target={PLAYOFFS_START} left={playoffsLeft} />
       </Card>
 
-      <LeagueNewsSection users={users} rosters={rosters} nflWeek={nflWeek} db={db} isAuthReady={isAuthReady} />
+      <LeagueNewsSection users={users} rosters={rosters} nflWeek={nflWeek} />
         
       <ConstitutionSection />
 
@@ -1422,8 +1386,8 @@ function OwnerTransactionsTracker() {
     try {
       setLoading(true); setError(null);
       const [users, rosters] = await Promise.all([
-        safeJson(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/users`),
-        safeJson(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/rosters`),
+        safeJson(`/api/sleeper/league/${LEAGUE_ID}/users`),
+        safeJson(`/api/sleeper/league/${LEAGUE_ID}/rosters`),
       ]);
       const userById = new Map<string, SleeperUser>((Array.isArray(users) ? users : []).map((u: SleeperUser) => [u.user_id, u]));
       const rosterById = new Map<number, SleeperRoster>((Array.isArray(rosters) ? rosters : []).map((r: SleeperRoster) => [r.roster_id, r]));
@@ -1431,7 +1395,7 @@ function OwnerTransactionsTracker() {
       // Helper to get owner display name from roster id
       const ownerName = (rid: number) => {
         const r = rosterById.get(rid);
-        const u = r?.owner_id ? userById.get(r.owner_id) : undefined;
+        const u = r?.owner_id ? userById.get(/* removed: r.owner_id (not on SleeperMatchup) */ undefined) : undefined;
         return u?.display_name || `Roster ${rid}`;
       };
 
@@ -1439,7 +1403,7 @@ function OwnerTransactionsTracker() {
       const weeks = Array.from({length: 18}, (_, i) => i + 1);
       const allTxns: SleeperTransaction[] = [];
       for (const w of weeks) {
-        const txns = await safeJson(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/transactions/${w}`);
+        const txns = await safeJson(`/api/sleeper/league/${LEAGUE_ID}/transactions/${w}`);
         if (Array.isArray(txns)) allTxns.push(...txns);
       }
 
@@ -1517,10 +1481,10 @@ function OwnerTransactionsTracker() {
                 <td className="py-2 pr-2">{r.adds}</td>
                 <td className="py-2 pr-2">{r.trades}</td>
                 <td className="py-2 pr-2 font-semibold">{r.total}</td>
-              </tr>
-              )) : (
-                <tr><td colSpan={4} className="py-3 text-slate-500">No data yet.</td></tr>
-              )}
+            </tr>
+            )) : (
+              <tr><td colSpan={4} className="py-3 text-slate-500">No data yet.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -1551,50 +1515,6 @@ const TABS = [
 export default function App() {
   const [tab, setTab] = useState<string>("home");
   
-  // --- FIREBASE STATE & INIT ---
-  const [db, setDb] = useState<any>(null);
-  const [auth, setAuth] = useState<any>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
-
-  useEffect(() => {
-    if (!firebaseConfig) return;
-
-    setLogLevel('debug'); // Enable Firestore logging
-    try {
-        const app = initializeApp(firebaseConfig);
-        const firestore = getFirestore(app);
-        const authService = getAuth(app);
-
-        setDb(firestore);
-        setAuth(authService);
-
-        // Handle initial authentication state
-        const unsubscribe = onAuthStateChanged(authService, async (user) => {
-            if (user) {
-                setUserId(user.uid);
-            } else {
-                // Attempt sign in with custom token, fall back to anonymous
-                if (initialAuthToken) {
-                    try {
-                        await signInWithCustomToken(authService, initialAuthToken);
-                    } catch (e) {
-                        console.error("Custom token sign-in failed, falling back to anonymous.", e);
-                        await signInAnonymously(authService);
-                    }
-                } else {
-                    await signInAnonymously(authService);
-                }
-            }
-            setIsAuthReady(true);
-        });
-
-        return () => unsubscribe();
-    } catch (e) {
-        console.error("Firebase initialization failed:", e);
-    }
-  }, []);
-
   // Fetches core league data (users and rosters)
   const { users, rosters } = useSleeperLeague(LEAGUE_ID);
   // Fetches current official NFL week
@@ -1641,25 +1561,17 @@ export default function App() {
             </div>
           </Card>
         )}
-        {!isAuthReady && (
-            <Card className="p-4 border-blue-300 bg-blue-50">
-                <div className="text-sm text-blue-800">
-                    <strong>Initializing Database:</strong> Connecting to Firebase for news and persistence...
-                </div>
-            </Card>
-        )}
 
         {tab === "home" && <HomeView scores={scores} />}
-        {tab === "league-info" && <LeagueInfoView _scores={scores} users={users.data} rosters={rosters.data} nflWeek={nflWeek} db={db} isAuthReady={isAuthReady} />}
+        {tab === "league-info" && <LeagueInfoView users={users.data} rosters={rosters.data} nflWeek={nflWeek} />}
         {tab === "standings" && <StandingsView scores={scores} gameRows={gameRows} recordsStatus={recordsStatus} recordsError={recordsError} />}
         {tab === "records" && <RecordsView gameRows={gameRows} recordsStatus={recordsStatus} recordsError={recordsError} bestRegularSeasonRecords={bestRegularSeasonRecords} leagueChampions={leagueChampions} />}
         {tab === "playoffs" && <PlayoffsView scores={scores} />}
       </main>
 
       <footer className="max-w-6xl mx-auto p-6 text-xs text-slate-500">
-        Built with ❤️ • News persistence is now handled by **Firebase Firestore**.
+        Built with ❤️ • Customize divisions in <code>MANUAL_DIVISIONS</code> if Sleeper division data isn't available.
       </footer>
     </div>
   );
 }
-
