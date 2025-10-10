@@ -1,4 +1,3 @@
-import React from "react";
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 
 /*******************************************
@@ -273,7 +272,7 @@ function useHistoricalLeagueData() {
                     const byUser = new Map(ctx.users.map(u => [u.user_id, u]));
                     nameResolvers.set(row.leagueId, (rid: number) => {
                         const r = byRoster.get(rid);
-                        const u = r?.owner_id ? byUser.get(/* removed: r.owner_id (not on SleeperMatchup) */ undefined) : undefined;
+                        const u = r?.owner_id ? byUser.get(r.owner_id) : undefined;
                         const owner = u?.display_name || `Roster ${rid}`; 
                         return `${owner}${row.season ? ` (${row.season})` : ''}`;
                     });
@@ -388,7 +387,7 @@ function usePowerScores(users: SleeperUser[] | null, rosters: SleeperRoster[] | 
   return useMemo<PowerScore[]>(() => {
     if (!users || !rosters) return [];
     const byOwner: Record<string, SleeperRoster> = {};
-    rosters.forEach(r => { if (/* removed: r.owner_id (not on SleeperMatchup) */ undefined) byOwner[/* removed: r.owner_id (not on SleeperMatchup) */ undefined] = r; });
+    rosters.forEach(r => { if (r.owner_id) byOwner[r.owner_id] = r; });
 
     return users.map(u => {
       const r = byOwner[u.user_id];
@@ -575,7 +574,7 @@ function RivalryTracker({ gameRows, status, error }: { gameRows: GameEntry[], st
 }
 
 // --- Views ---
-function HomeView({ scores }: { _scores: PowerScore[] }) {
+function HomeView({ scores }: { scores: PowerScore[] }) {
   const top5 = scores.slice(0, 5);
   const draftLeft = timeLeft(DRAFT_DAY);
   const tradeLeft = timeLeft(TRADE_DEADLINE);
@@ -613,7 +612,7 @@ function HomeView({ scores }: { _scores: PowerScore[] }) {
         <Card className="p-6 md:col-span-2">
           <SectionTitle title="Power Rankings" subtitle="Auto-computed from points for and win%" />
           <ol className="divide-y">
-            {top5.map((t, i) => (
+            {top5.map((t: PowerScore, i: number) => (
               <li key={t.team} className="py-3 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-slate-900 text-white font-bold grid place-items-center">{i + 1}</div>
@@ -651,7 +650,7 @@ function NewsLink({ href, label }: { href: string; label: string }) {
   );
 }
 
-function StandingsView({ scores, gameRows, recordsStatus, recordsError }: { _scores: PowerScore[], gameRows: GameEntry[], recordsStatus: string, recordsError: string | null }) {
+function StandingsView({ scores, gameRows, recordsStatus, recordsError }: { scores: PowerScore[], gameRows: GameEntry[], recordsStatus: string, recordsError: string | null }) {
   // Canvas-friendly standings grouped by division, no toggle
   const [sortKey, setSortKey] = useState<'rank' | 'team' | 'record' | 'pf' | 'pa' | 'avg'>('rank');
   const [dir, setDir] = useState<'asc' | 'desc'>('asc');
@@ -683,12 +682,12 @@ function StandingsView({ scores, gameRows, recordsStatus, recordsError }: { _sco
   if (dir === 'desc') sortedAll.reverse();
 
   const byDivision = {
-    NFC: sortedAll.filter(s => s.division === 'NFC'),
-    AFC: sortedAll.filter(s => s.division === 'AFC'),
+    NFC: sortedAll.filter((s: PowerScore) => s.division === 'NFC'),
+    AFC: sortedAll.filter((s: PowerScore) => s.division === 'AFC'),
   } as const;
 
   const renderRows = (arr: PowerScore[]) => (
-    arr.map((t, i) => (
+    arr.map((t: PowerScore, i: number) => (
       <tr key={t.team + i} className="border-b last:border-0">
         <td className="py-2 pr-2 font-semibold">{i + 1}</td>
         <td className="py-2 pr-2">{t.team}</td>
@@ -745,7 +744,7 @@ function StandingsView({ scores, gameRows, recordsStatus, recordsError }: { _sco
 }
 
 // --- Playoffs ---
-function PlayoffsView({ scores }: { _scores: PowerScore[] }) {
+function PlayoffsView({ scores }: { scores: PowerScore[] }) {
   const compare = (a: PowerScore, b: PowerScore) => {
     const recordDiff = (b.wins - b.losses) - (a.wins - a.losses);
     if (recordDiff !== 0) return recordDiff;
@@ -753,7 +752,7 @@ function PlayoffsView({ scores }: { _scores: PowerScore[] }) {
   };
 
   const seedDivision = (division: 'NFC' | 'AFC') => {
-    const teams = scores.filter(s => s.division === division).sort(compare);
+    const teams = scores.filter((s: PowerScore) => s.division === division).sort(compare);
     const one = teams[0];
     const two = teams[1];
     const three = teams[2];
@@ -1075,7 +1074,7 @@ function LeagueNewsSection({ users, rosters, nflWeek }: { users: SleeperUser[] |
 
         // Find top point scorer from current rosters/scores (best proxy for power)
         const topTeam = rosters
-            .map(r => ({ owner: users.find(u => u.user_id === /* removed: r.owner_id (not on SleeperMatchup) */ undefined)?.display_name, points: r.settings?.fpts ?? 0 }))
+            .map(r => ({ owner: users.find(u => u.user_id === r.owner_id)?.display_name, points: r.settings?.fpts ?? 0 }))
             .sort((a, b) => b.points - a.points)[0];
         
         return `
@@ -1395,7 +1394,7 @@ function OwnerTransactionsTracker() {
       // Helper to get owner display name from roster id
       const ownerName = (rid: number) => {
         const r = rosterById.get(rid);
-        const u = r?.owner_id ? userById.get(/* removed: r.owner_id (not on SleeperMatchup) */ undefined) : undefined;
+        const u = r?.owner_id ? userById.get(r.owner_id) : undefined;
         return u?.display_name || `Roster ${rid}`;
       };
 
